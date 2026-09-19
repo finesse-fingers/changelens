@@ -1,0 +1,323 @@
+@import 'tailwindcss';
+
+/*
+ * Two themes. Dark is the default because review sessions are long; the paper
+ * theme reuses the exact tokens from the user's own change-map page so the app
+ * and those artifacts read as one family.
+ */
+:root {
+  --paper: #10151a;
+  --panel: #161c23;
+  --raised: #1d252e;
+  --ink: #e5eaef;
+  --muted: #8b99a7;
+  --line: #2a3541;
+  --teal: #4fd1c5;
+  --amber: #e0a23c;
+  --violet: #a58fe0;
+  --rose: #f2707f;
+  --add-bg: rgba(79, 209, 145, 0.11);
+  --add-gutter: #3fae7f;
+  --del-bg: rgba(242, 112, 127, 0.11);
+  --del-gutter: #d4606e;
+  --accent: var(--teal);
+  color-scheme: dark;
+}
+
+:root[data-theme='paper'] {
+  --paper: #f4f3ed;
+  --panel: #ffffff;
+  --raised: #eceadf;
+  --ink: #182b36;
+  --muted: #576570;
+  --line: #d9ded8;
+  --teal: #17675d;
+  --amber: #805416;
+  --violet: #62508f;
+  --rose: #a33a44;
+  --add-bg: rgba(23, 103, 93, 0.09);
+  --add-gutter: #17675d;
+  --del-bg: rgba(163, 58, 68, 0.09);
+  --del-gutter: #a33a44;
+  --accent: var(--teal);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-sans-serif, -apple-system, 'SF Pro Text', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, pre, .mono {
+  font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+@layer utilities {
+  .surface { background: var(--panel); }
+  .raised { background: var(--raised); }
+  .hairline { border-color: var(--line); }
+  .muted { color: var(--muted); }
+}
+
+/*
+ * One scrolling column with an annotation margin.
+ *
+ * Each segment is a grid row: code left, note right. Alignment is structural,
+ * so a note can never drift from the change it describes and there is nothing
+ * to measure, position or de-collide at runtime.
+ */
+:root {
+  --margin-w: 360px;
+  --margin-gap: 20px;
+  /* Height of the sticky file header, which notes must clear. */
+  --sticky-top: 34px;
+}
+
+/*
+ * Width is set by the pair, not by the window. A code column wide enough to
+ * fill a large display leaves the note stranded hundreds of pixels from the
+ * lines it describes, which is the problem this layout exists to fix. ~115
+ * monospace columns is more than any readable line needs; anything longer
+ * scrolls.
+ */
+.stream {
+  max-width: calc(940px + var(--margin-gap) + var(--margin-w));
+  margin: 0 auto;
+}
+
+.seg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--margin-gap);
+  align-items: start;
+}
+.stream.has-margin .seg {
+  grid-template-columns: minmax(0, 1fr) var(--margin-w);
+}
+
+/*
+ * Long lines scroll horizontally rather than being truncated — code cut off
+ * with an ellipsis cannot be reviewed, which defeats the whole point. The
+ * line-number gutters stay pinned while the code scrolls under them.
+ */
+.seg-code { overflow-x: auto; min-width: 0; }
+
+/*
+ * One width for every row in a segment, so a row tint is a band rather than a
+ * ragged edge.
+ *
+ * Rows used to size themselves — `min-width: min-content` left short ones at
+ * the container width and long ones at their own — so scrolling right ran the
+ * short rows' green or red out from under the line while the long one carried
+ * on past it. `max-content` here lets the widest row set the width for all of
+ * them (a percentage-width child counts as `auto` for intrinsic sizing, so
+ * there is no circularity), and `min-width: 100%` keeps the band full-bleed
+ * when every line is short.
+ *
+ * Nothing here may set `overflow`, `transform`, `filter` or `contain`: any of
+ * those would become the sticky containing block and unpin the gutters.
+ */
+.seg-rows { width: max-content; min-width: 100%; }
+
+/*
+ * `align-self: start` gives the note its own height, so sticky positions it
+ * inside its own grid row: it holds place while its change scrolls past, then
+ * leaves with the row rather than following the reader down the page.
+ */
+.seg-note {
+  align-self: start;
+  position: sticky;
+  top: var(--sticky-top);
+  padding-right: 16px;
+}
+.stream:not(.has-margin) .seg-note { display: none; }
+
+/* Below this the margin cannot hold prose, so notes flow under their code. */
+@media (max-width: 1180px) {
+  .stream.has-margin .seg { grid-template-columns: minmax(0, 1fr); }
+  .seg-note { position: static; padding: 0 16px 8px 16px; }
+}
+
+/* Diff rows are dense and must not reflow; fixed metrics keep gutters aligned. */
+.diff-row {
+  display: grid;
+  grid-template-columns: 52px 52px 1fr;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 19px;
+  white-space: pre;
+  width: 100%;
+}
+.diff-row.add { background: var(--add-bg); }
+.diff-row.del { background: var(--del-bg); }
+/*
+ * The gutter pins while the code scrolls under it, so it has to be opaque.
+ *
+ * It was not: element `opacity` faded the background along with the text, and
+ * `background: inherit` picked up the row tints below, which are 11% alpha by
+ * design. The result was a ~93% transparent pane on exactly the rows that
+ * matter, with the code plainly visible sliding beneath the numbers. The text
+ * is dimmed through its own colour instead, and the tint is layered over an
+ * opaque base rather than replacing it.
+ */
+.diff-num {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  text-align: right;
+  padding-right: 10px;
+  user-select: none;
+  font-size: 11px;
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+.diff-row.add .diff-num { background: linear-gradient(var(--add-bg), var(--add-bg)), var(--panel); }
+.diff-row.del .diff-num { background: linear-gradient(var(--del-bg), var(--del-bg)), var(--panel); }
+.diff-num:nth-child(2) { left: 52px; }
+/*
+ * Syntax highlighting, in this app's palette rather than an editor's.
+ *
+ * Shiki is built with its css-variables theme, so every token comes back
+ * coloured `var(--shiki-token-…)` and the actual choice is made here. Defining
+ * them in terms of the existing tokens means one block covers both themes:
+ * custom properties substitute at use time, so `--violet` resolves to whichever
+ * `--violet` the live `data-theme` defines. Switching themes therefore recolours
+ * instantly and nothing is re-tokenized.
+ *
+ * Restraint is the point. A diff is already carrying two background tints, a
+ * +/− gutter, review state and an annotation margin; a full twelve-hue editor
+ * palette on top of that is noise. Four hues, and punctuation and comments
+ * recede.
+ */
+:root {
+  --shiki-foreground: var(--ink);
+  --shiki-token-comment: var(--muted);
+  --shiki-token-punctuation: var(--muted);
+  --shiki-token-keyword: var(--violet);
+  --shiki-token-string: var(--amber);
+  --shiki-token-string-expression: var(--teal);
+  --shiki-token-constant: var(--rose);
+  --shiki-token-function: var(--teal);
+  --shiki-token-parameter: var(--ink);
+  --shiki-token-inserted: var(--add-gutter);
+  --shiki-token-deleted: var(--del-gutter);
+  --shiki-token-changed: var(--amber);
+  --shiki-token-link: var(--accent);
+}
+
+.diff-code { padding-left: 12px; padding-right: 24px; }
+.diff-row.add .diff-code::before { content: '+'; color: var(--add-gutter); margin-left: -10px; margin-right: 2px; }
+.diff-row.del .diff-code::before { content: '−'; color: var(--del-gutter); margin-left: -10px; margin-right: 2px; }
+.diff-row.context .diff-code::before { content: ' '; margin-left: -10px; margin-right: 2px; }
+
+/*
+ * A unit the reviewer has signed off on recedes without disappearing.
+ *
+ * 0.45 was tuned when every line of code was one bright colour. Highlighting
+ * broke that: a comment is `--muted` to begin with, and dimming it again put it
+ * at 2.1:1 against a tinted row, where reviewed code used to sit at 3.6:1. The
+ * dimmest thing on screen was being dimmed twice, on exactly the rows a reviewer
+ * comes back to. 0.6 brings the worst case to 2.7:1 and still reads as clearly
+ * receded — closer to "disappearing" than the comment above intends, so it is a
+ * number worth moving if reviewed work starts feeling too present.
+ */
+.unit-reviewed { opacity: 0.6; }
+.unit-focused { box-shadow: inset 3px 0 0 var(--accent); }
+
+/*
+ * The note is prose sitting beside code, and it has to read as prose: sans
+ * face, real line-height, its own surface. Shrinking it into the margin is how
+ * the current build ended up with explanations nobody reads.
+ */
+.note {
+  background: var(--raised);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+.note-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 2px;
+}
+.note.is-done { opacity: 0.45; }
+
+/*
+ * A routine change, out of the way.
+ *
+ * One line, dim, still clickable. The margin is only worth having if most of it
+ * can recede — a rename rendered as prominently as a behaviour change is what
+ * trains the eye to skip the whole column.
+ */
+.note-routine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 2px 4px 2px 8px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+  opacity: 0.7;
+  border-left: 2px solid var(--line);
+}
+.note-routine:hover { opacity: 1; background: var(--raised); }
+
+/* A shard still in flight. Deliberately fainter than any real note: it is the
+   absence of an answer, not an answer. */
+.note-pending {
+  display: block;
+  padding: 2px 4px 2px 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+  border-left: 2px solid var(--line);
+  animation: note-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes note-pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.6; }
+}
+
+/* A cited house rule, which is checkable rather than a matter of taste. */
+.note-convention {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.note-convention em { font-style: italic; margin: 2px 0; }
+
+.kbd {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}

@@ -1,0 +1,37 @@
+{
+  // The server half of `pnpm build`. The root tsconfig describes the web bundle
+  // — JSX, DOM, bundler resolution, `noEmit` — and none of that fits code Node
+  // runs directly, so this is a separate config rather than an override.
+  //
+  // `NodeNext` is what the source already assumes: the package is
+  // `"type": "module"`, and every relative import under src/server and
+  // src/shared already carries a `.js` extension, which is exactly what Node's
+  // ESM resolver requires and what the root's `bundler` resolution merely
+  // tolerated.
+  "compilerOptions": {
+    "target": "ES2023",
+    // No DOM. The server should fail to compile if browser code reaches it,
+    // rather than emitting something that throws at runtime.
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+
+    // `rootDir: src` is what puts the entry point at dist/server/index.js,
+    // where `pnpm start` looks for it, while keeping src/shared beside it at
+    // dist/shared rather than collapsing the two into one directory.
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/server", "src/shared"],
+  // Tests run from source through tsx and have no business in a build artifact.
+  "exclude": ["**/*.test.ts"]
+}
