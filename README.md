@@ -16,6 +16,13 @@ many worktrees, so by the time a PR exists there is no memory of which session
 produced what, or why. It works just as well on one agent, or on a colleague's
 PR.
 
+**This app was vibe coded.** It was built by prompting Claude Code rather than by
+typing it out, which makes it its own longest-running test case: a tool for
+reviewing agent-written diffs, itself an agent-written diff. The tests are real,
+and so is the reasoning recorded in the comments — but it was not hand-written
+line by line, and it has not been hand-audited line by line. Read it, and any
+judgement it gives you, with that in mind.
+
 ---
 
 ## Prerequisites
